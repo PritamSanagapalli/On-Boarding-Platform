@@ -1,0 +1,38 @@
+# ========== General ==========
+node_modules/
+package-lock.json
+package.json
+
+# ========== Backend ==========
+backend/target/
+backend/uploads/
+backend/src/main/resources/firebase-service-account.json
+*.class
+*.jar
+*.war
+*.log
+.mvn/
+mvnw
+mvnw.cmd
+
+# ========== Frontend ==========
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# ========== IDE ==========
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# ========== OS ==========
+.DS_Store
+Thumbs.db
+
+# ========== Docker ==========
+docker-compose.override.yml
