@@ -17,9 +17,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Service for dashboard statistics and analytics.
- */
 @Service
 public class DashboardService {
 
@@ -38,10 +35,6 @@ public class DashboardService {
         this.taskService = taskService;
     }
 
-    /**
-     * Get admin dashboard statistics.
-     * Includes total counts and per-employee progress.
-     */
     public DashboardAdminDTO getAdminDashboard() {
         List<User> employees = userRepository.findAll().stream()
                 .filter(u -> u.getRole() == Role.EMPLOYEE)
@@ -50,43 +43,45 @@ public class DashboardService {
         long totalTasks = taskRepository.count();
         long completedTasks = taskRepository.countByStatus(TaskStatus.COMPLETED);
         long pendingTasks = taskRepository.countByStatus(TaskStatus.PENDING);
+        long inReviewTasks = taskRepository.countByStatus(TaskStatus.IN_REVIEW);
 
         List<DashboardAdminDTO.EmployeeProgressDTO> progress = employees.stream()
-                .map(emp -> DashboardAdminDTO.EmployeeProgressDTO.builder()
-                        .userId(emp.getId())
-                        .name(emp.getName())
-                        .email(emp.getEmail())
-                        .profilePicture(emp.getProfilePicture())
-                        .totalTasks(taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.PENDING)
-                                + taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.COMPLETED))
-                        .completedTasks(taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.COMPLETED))
-                        .pendingDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.PENDING))
-                        .submittedDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.SUBMITTED))
-                        .build())
+                .map(emp -> {
+                    long empTotal = taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.PENDING)
+                            + taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.IN_REVIEW)
+                            + taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.COMPLETED)
+                            + taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.REJECTED);
+                    return DashboardAdminDTO.EmployeeProgressDTO.builder()
+                            .userId(emp.getId())
+                            .name(emp.getName())
+                            .email(emp.getEmail())
+                            .profilePicture(emp.getProfilePicture())
+                            .totalTasks(empTotal)
+                            .completedTasks(taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.COMPLETED))
+                            .pendingDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.PENDING))
+                            .submittedDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.SUBMITTED))
+                            .build();
+                })
                 .collect(Collectors.toList());
 
         return DashboardAdminDTO.builder()
                 .totalEmployees(employees.size())
                 .totalTasks(totalTasks)
                 .completedTasks(completedTasks)
-                .pendingTasks(pendingTasks)
+                .pendingTasks(pendingTasks + inReviewTasks)
                 .employeeProgress(progress)
                 .build();
     }
 
-    /**
-     * Get employee dashboard statistics.
-     * Includes task counts and upcoming deadlines.
-     */
     public DashboardEmployeeDTO getEmployeeDashboard(User user) {
         Long userId = user.getId();
 
         long completedTasks = taskRepository.countByAssignedToIdAndStatus(userId, TaskStatus.COMPLETED);
         long pendingTasks = taskRepository.countByAssignedToIdAndStatus(userId, TaskStatus.PENDING);
+        long inReviewTasks = taskRepository.countByAssignedToIdAndStatus(userId, TaskStatus.IN_REVIEW);
         long pendingDocs = documentRepository.countByUserIdAndStatus(userId, DocumentStatus.PENDING);
         long submittedDocs = documentRepository.countByUserIdAndStatus(userId, DocumentStatus.SUBMITTED);
 
-        // Get tasks with deadlines in the next 7 days
         LocalDate now = LocalDate.now();
         LocalDate nextWeek = now.plusDays(7);
         List<TaskDTO> upcomingDeadlines = taskRepository
@@ -96,9 +91,9 @@ public class DashboardService {
                 .collect(Collectors.toList());
 
         return DashboardEmployeeDTO.builder()
-                .totalTasks(completedTasks + pendingTasks)
+                .totalTasks(completedTasks + pendingTasks + inReviewTasks)
                 .completedTasks(completedTasks)
-                .pendingTasks(pendingTasks)
+                .pendingTasks(pendingTasks + inReviewTasks)
                 .pendingDocuments(pendingDocs)
                 .submittedDocuments(submittedDocs)
                 .upcomingDeadlines(upcomingDeadlines)

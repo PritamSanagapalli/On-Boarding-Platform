@@ -7,13 +7,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-/**
- * Repository for Document entity operations.
- */
 @Repository
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     List<Document> findByUserId(Long userId);
+
+    List<Document> findAllByOrderByCreatedAtDesc();
 
     long countByUserIdAndStatus(Long userId, DocumentStatus status);
 }

@@ -13,9 +13,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * Controller for document management endpoints.
- */
 @RestController
 @RequestMapping("/api/documents")
 public class DocumentController {
@@ -26,10 +23,6 @@ public class DocumentController {
         this.documentService = documentService;
     }
 
-    /**
-     * POST /api/documents
-     * Request a document from an employee (Admin only).
-     */
     @PostMapping
     public ResponseEntity<ApiResponse<DocumentDTO>> createDocumentRequest(
             @Valid @RequestBody DocumentCreateRequest request,
@@ -39,10 +32,12 @@ public class DocumentController {
                 .body(ApiResponse.success("Document requested successfully", document));
     }
 
-    /**
-     * GET /api/documents/user/{userId}
-     * Get all documents for a user.
-     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<DocumentDTO>>> getAllDocuments() {
+        List<DocumentDTO> documents = documentService.getAllDocuments();
+        return ResponseEntity.ok(ApiResponse.success(documents));
+    }
+
     @GetMapping("/user/{userId}")
     public ResponseEntity<ApiResponse<List<DocumentDTO>>> getDocumentsByUser(
             @PathVariable Long userId) {
@@ -50,10 +45,6 @@ public class DocumentController {
         return ResponseEntity.ok(ApiResponse.success(documents));
     }
 
-    /**
-     * PUT /api/documents/{id}
-     * Update a document (submit / add file URL).
-     */
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<DocumentDTO>> updateDocument(
             @PathVariable Long id,

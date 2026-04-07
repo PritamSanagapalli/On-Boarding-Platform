@@ -15,11 +15,11 @@ import {
   HiOutlineClipboardList,
   HiOutlineClock,
   HiOutlineCalendar,
+  HiOutlineEye,
+  HiOutlineXCircle,
+  HiOutlineRefresh,
 } from 'react-icons/hi'
 
-/**
- * Task filters bar with status, priority, deadline, and search.
- */
 function TaskFilters({ filters, setFilters }) {
   return (
     <div className="glass-card p-4 flex flex-wrap items-center gap-3">
@@ -28,7 +28,6 @@ function TaskFilters({ filters, setFilters }) {
         <span className="text-xs font-semibold uppercase tracking-wider">Filters</span>
       </div>
 
-      {/* Search */}
       <div className="relative flex-1 min-w-[200px]">
         <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
@@ -41,7 +40,6 @@ function TaskFilters({ filters, setFilters }) {
         />
       </div>
 
-      {/* Status filter */}
       <select
         value={filters.status}
         onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
@@ -50,10 +48,11 @@ function TaskFilters({ filters, setFilters }) {
       >
         <option value="">All Status</option>
         <option value="PENDING">Pending</option>
+        <option value="IN_REVIEW">In Review</option>
         <option value="COMPLETED">Completed</option>
+        <option value="REJECTED">Rejected</option>
       </select>
 
-      {/* Priority filter */}
       <select
         value={filters.priority}
         onChange={(e) => setFilters(prev => ({ ...prev, priority: e.target.value }))}
@@ -66,7 +65,6 @@ function TaskFilters({ filters, setFilters }) {
         <option value="HIGH">High</option>
       </select>
 
-      {/* Deadline filter */}
       <input
         type="date"
         value={filters.deadline}
@@ -75,7 +73,6 @@ function TaskFilters({ filters, setFilters }) {
         id="task-deadline-filter"
       />
 
-      {/* Clear filters */}
       {(filters.search || filters.status || filters.priority || filters.deadline) && (
         <button
           onClick={() => setFilters({ search: '', status: '', priority: '', deadline: '' })}
@@ -88,9 +85,6 @@ function TaskFilters({ filters, setFilters }) {
   )
 }
 
-/**
- * Task form used in modal for creating/editing tasks (Admin).
- */
 function TaskForm({ task, users, onSubmit, onCancel, loading }) {
   const [form, setForm] = useState({
     title: task?.title || '',
@@ -155,7 +149,9 @@ function TaskForm({ task, users, onSubmit, onCancel, loading }) {
             id="task-status-input"
           >
             <option value="PENDING">Pending</option>
+            <option value="IN_REVIEW">In Review</option>
             <option value="COMPLETED">Completed</option>
+            <option value="REJECTED">Rejected</option>
           </select>
         </div>
       </div>
@@ -199,9 +195,29 @@ function TaskForm({ task, users, onSubmit, onCancel, loading }) {
   )
 }
 
-/**
- * Task list component with cards, CRUD operations, and filtering.
- */
+function StatusIcon({ status }) {
+  switch (status) {
+    case 'COMPLETED':
+      return <HiOutlineCheckCircle className="w-5 h-5 text-emerald-500" />
+    case 'IN_REVIEW':
+      return <HiOutlineEye className="w-5 h-5 text-purple-500" />
+    case 'REJECTED':
+      return <HiOutlineXCircle className="w-5 h-5 text-red-500" />
+    default:
+      return <HiOutlineClock className="w-5 h-5 text-amber-500" />
+  }
+}
+
+function StatusLabel({ status }) {
+  const labels = {
+    PENDING: 'Pending',
+    IN_REVIEW: 'In Review',
+    COMPLETED: 'Approved',
+    REJECTED: 'Rejected',
+  }
+  return labels[status] || status
+}
+
 export default function TaskList() {
   const { user, isAdmin } = useAuth()
   const [tasks, setTasks] = useState([])
@@ -298,24 +314,70 @@ export default function TaskList() {
     }
   }
 
-  const handleStatusToggle = async (task) => {
-    const newStatus = task.status === 'PENDING' ? 'COMPLETED' : 'PENDING'
+  // Employee: submit task for review (PENDING → IN_REVIEW)
+  const handleSubmitForReview = async (task) => {
     try {
       await api.put(`/tasks/${task.id}`, {
         ...task,
-        status: newStatus,
+        status: 'IN_REVIEW',
         assignedToId: task.assignedTo?.id,
       })
-      toast.success(`Task marked as ${newStatus.toLowerCase()}`)
+      toast.success('Task submitted for review! ✅')
       fetchTasks()
     } catch (error) {
-      toast.error('Failed to update task status')
+      toast.error(error.response?.data?.message || 'Failed to submit task')
     }
   }
 
+  // Employee: resubmit rejected task (REJECTED → PENDING)
+  const handleResubmit = async (task) => {
+    try {
+      await api.put(`/tasks/${task.id}`, {
+        ...task,
+        status: 'PENDING',
+        assignedToId: task.assignedTo?.id,
+      })
+      toast.success('Task reopened for rework')
+      fetchTasks()
+    } catch (error) {
+      toast.error('Failed to resubmit task')
+    }
+  }
+
+  // Admin: approve task (IN_REVIEW → COMPLETED)
+  const handleApprove = async (task) => {
+    try {
+      await api.put(`/tasks/${task.id}`, {
+        ...task,
+        status: 'COMPLETED',
+        assignedToId: task.assignedTo?.id,
+      })
+      toast.success('Task approved! 🎉')
+      fetchTasks()
+    } catch (error) {
+      toast.error('Failed to approve task')
+    }
+  }
+
+  // Admin: reject task (IN_REVIEW → REJECTED)
+  const handleReject = async (task) => {
+    try {
+      await api.put(`/tasks/${task.id}`, {
+        ...task,
+        status: 'REJECTED',
+        assignedToId: task.assignedTo?.id,
+      })
+      toast.success('Task sent back for rework')
+      fetchTasks()
+    } catch (error) {
+      toast.error('Failed to reject task')
+    }
+  }
+
+  const inReviewCount = tasks.filter(t => t.status === 'IN_REVIEW').length
+
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tasks</h1>
@@ -323,18 +385,26 @@ export default function TaskList() {
             {isAdmin ? 'Manage and assign onboarding tasks' : 'View and complete your assigned tasks'}
           </p>
         </div>
-        {isAdmin && (
-          <button onClick={handleCreate} className="btn-primary flex items-center gap-2" id="create-task-button">
-            <HiOutlinePlus className="w-4 h-4" />
-            New Task
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isAdmin && inReviewCount > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 dark:bg-purple-500/10 rounded-xl">
+              <HiOutlineEye className="w-4 h-4 text-purple-500" />
+              <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                {inReviewCount} awaiting review
+              </span>
+            </div>
+          )}
+          {isAdmin && (
+            <button onClick={handleCreate} className="btn-primary flex items-center gap-2" id="create-task-button">
+              <HiOutlinePlus className="w-4 h-4" />
+              New Task
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Filters */}
       <TaskFilters filters={filters} setFilters={setFilters} />
 
-      {/* Task cards */}
       {loading ? (
         <LoadingSpinner message="Loading tasks..." />
       ) : tasks.length === 0 ? (
@@ -350,25 +420,16 @@ export default function TaskList() {
           {tasks.map((task, idx) => (
             <div
               key={task.id}
-              className="glass-card p-5 hover:shadow-xl transition-all duration-300 animate-slide-up"
+              className={`glass-card p-5 hover:shadow-xl transition-all duration-300 animate-slide-up ${
+                task.status === 'IN_REVIEW' && isAdmin ? 'ring-2 ring-purple-200 dark:ring-purple-500/30' : ''
+              } ${task.status === 'REJECTED' ? 'border-l-4 border-red-400' : ''}`}
               style={{ animationDelay: `${idx * 50}ms` }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4 flex-1">
-                  {/* Status toggle button */}
-                  <button
-                    onClick={() => handleStatusToggle(task)}
-                    className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                      task.status === 'COMPLETED'
-                        ? 'border-emerald-500 bg-emerald-500 text-white'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-primary-500'
-                    }`}
-                    title={task.status === 'COMPLETED' ? 'Mark as pending' : 'Mark as completed'}
-                  >
-                    {task.status === 'COMPLETED' && (
-                      <HiOutlineCheckCircle className="w-4 h-4" />
-                    )}
-                  </button>
+                  <div className="mt-0.5 flex-shrink-0">
+                    <StatusIcon status={task.status} />
+                  </div>
 
                   <div className="flex-1 min-w-0">
                     <h3 className={`text-sm font-semibold ${
@@ -382,7 +443,7 @@ export default function TaskList() {
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{task.description}</p>
                     )}
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Badge variant={task.status?.toLowerCase()}>{task.status}</Badge>
+                      <Badge variant={task.status?.toLowerCase()}>{StatusLabel({ status: task.status })}</Badge>
                       <Badge variant={task.priority?.toLowerCase()}>{task.priority}</Badge>
                       {task.deadline && (
                         <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
@@ -404,32 +465,85 @@ export default function TaskList() {
                   </div>
                 </div>
 
-                {/* Actions */}
-                {isAdmin && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {/* Employee actions */}
+                  {!isAdmin && task.status === 'PENDING' && (
                     <button
-                      onClick={() => handleEdit(task)}
-                      className="p-2 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
-                      title="Edit"
+                      onClick={() => handleSubmitForReview(task)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20 transition-colors flex items-center gap-1.5"
+                      title="Submit for admin review"
                     >
-                      <HiOutlinePencil className="w-4 h-4" />
+                      <HiOutlineCheckCircle className="w-3.5 h-3.5" />
+                      Mark Done
                     </button>
+                  )}
+                  {!isAdmin && task.status === 'IN_REVIEW' && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                      ⏳ Awaiting Approval
+                    </span>
+                  )}
+                  {!isAdmin && task.status === 'REJECTED' && (
                     <button
-                      onClick={() => handleDelete(task.id)}
-                      className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                      title="Delete"
+                      onClick={() => handleResubmit(task)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors flex items-center gap-1.5"
+                      title="Resubmit for review"
                     >
-                      <HiOutlineTrash className="w-4 h-4" />
+                      <HiOutlineRefresh className="w-3.5 h-3.5" />
+                      Rework & Resubmit
                     </button>
-                  </div>
-                )}
+                  )}
+                  {!isAdmin && task.status === 'COMPLETED' && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      ✓ Approved
+                    </span>
+                  )}
+
+                  {/* Admin actions */}
+                  {isAdmin && task.status === 'IN_REVIEW' && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(task)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors flex items-center gap-1.5"
+                        title="Approve this task"
+                      >
+                        <HiOutlineCheckCircle className="w-3.5 h-3.5" />
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(task)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
+                        title="Reject this task"
+                      >
+                        <HiOutlineXCircle className="w-3.5 h-3.5" />
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  {isAdmin && (
+                    <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-200 dark:border-dark-border">
+                      <button
+                        onClick={() => handleEdit(task)}
+                        className="p-2 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
+                        title="Edit"
+                      >
+                        <HiOutlinePencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(task.id)}
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                        title="Delete"
+                      >
+                        <HiOutlineTrash className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-4">
           <button
@@ -452,7 +566,6 @@ export default function TaskList() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
       <Modal
         isOpen={modalOpen}
         onClose={() => { setModalOpen(false); setEditingTask(null) }}

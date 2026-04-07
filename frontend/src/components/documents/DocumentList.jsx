@@ -172,16 +172,8 @@ export default function DocumentList() {
     try {
       setLoading(true)
       if (isAdmin) {
-        const usersRes = await api.get('/users')
-        const allUsers = usersRes.data.data || []
-        let allDocs = []
-        for (const u of allUsers) {
-          try {
-            const docsRes = await api.get(`/documents/user/${u.id}`)
-            allDocs = [...allDocs, ...(docsRes.data.data || [])]
-          } catch { /* skip */ }
-        }
-        setDocuments(allDocs)
+        const res = await api.get('/documents')
+        setDocuments(res.data.data || [])
       } else {
         const res = await api.get(`/documents/user/${user.id}`)
         setDocuments(res.data.data || [])

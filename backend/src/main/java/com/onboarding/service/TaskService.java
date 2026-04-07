@@ -18,10 +18,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Service for task management operations.
- * Enforces role-based access: Admins can CRUD all tasks, Employees can only update status.
- */
 @Service
 public class TaskService {
 
@@ -33,9 +29,6 @@ public class TaskService {
         this.userService = userService;
     }
 
-    /**
-     * Create a new task (Admin only).
-     */
     public TaskDTO createTask(TaskCreateRequest request, User currentUser) {
         if (currentUser.getRole() != Role.ADMIN) {
             throw new UnauthorizedException("Only admins can create tasks");
@@ -59,43 +52,29 @@ public class TaskService {
         return toDTO(saved);
     }
 
-    /**
-     * Get all tasks with optional filters (Admin).
-     */
     public Page<TaskDTO> getAllTasks(TaskStatus status, TaskPriority priority,
                                      LocalDate deadline, String search, Pageable pageable) {
         return taskRepository.findWithFilters(status, priority, deadline, search, pageable)
                 .map(this::toDTO);
     }
 
-    /**
-     * Get tasks for a specific user with optional filters.
-     */
     public Page<TaskDTO> getTasksByUser(Long userId, TaskStatus status, TaskPriority priority,
                                          LocalDate deadline, String search, Pageable pageable) {
         return taskRepository.findByUserWithFilters(userId, status, priority, deadline, search, pageable)
                 .map(this::toDTO);
     }
 
-    /**
-     * Get a single task by ID.
-     */
     public TaskDTO getTaskById(Long id) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", id));
         return toDTO(task);
     }
 
-    /**
-     * Update a task.
-     * Admins can update everything; Employees can only update status.
-     */
     public TaskDTO updateTask(Long id, TaskCreateRequest request, User currentUser) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", id));
 
         if (currentUser.getRole() == Role.ADMIN) {
-            // Admin can update all fields
             task.setTitle(request.getTitle());
             task.setDescription(request.getDescription());
             if (request.getStatus() != null) {
@@ -110,12 +89,21 @@ public class TaskService {
                 task.setAssignedTo(assignedTo);
             }
         } else if (currentUser.getRole() == Role.EMPLOYEE) {
-            // Employee can only update status of their own tasks
             if (!task.getAssignedTo().getId().equals(currentUser.getId())) {
                 throw new UnauthorizedException("You can only update your own tasks");
             }
             if (request.getStatus() != null) {
-                task.setStatus(TaskStatus.valueOf(request.getStatus()));
+                TaskStatus newStatus = TaskStatus.valueOf(request.getStatus());
+                // Employees can only submit for review (PENDING -> IN_REVIEW)
+                // or revert their own submission (IN_REVIEW -> PENDING)
+                if (newStatus == TaskStatus.IN_REVIEW && task.getStatus() == TaskStatus.PENDING) {
+                    task.setStatus(TaskStatus.IN_REVIEW);
+                } else if (newStatus == TaskStatus.PENDING &&
+                           (task.getStatus() == TaskStatus.IN_REVIEW || task.getStatus() == TaskStatus.REJECTED)) {
+                    task.setStatus(TaskStatus.PENDING);
+                } else {
+                    throw new UnauthorizedException("Employees can only submit tasks for review");
+                }
             }
         }
 
@@ -123,9 +111,6 @@ public class TaskService {
         return toDTO(updated);
     }
 
-    /**
-     * Delete a task (Admin only).
-     */
     public void deleteTask(Long id, User currentUser) {
         if (currentUser.getRole() != Role.ADMIN) {
             throw new UnauthorizedException("Only admins can delete tasks");
@@ -136,9 +121,6 @@ public class TaskService {
         taskRepository.deleteById(id);
     }
 
-    /**
-     * Convert Task entity to DTO.
-     */
     public TaskDTO toDTO(Task task) {
         return TaskDTO.builder()
                 .id(task.getId())

@@ -14,10 +14,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Service for document management operations.
- * Admins can request documents, Employees can submit them.
- */
 @Service
 public class DocumentService {
 
@@ -29,9 +25,6 @@ public class DocumentService {
         this.userService = userService;
     }
 
-    /**
-     * Create a document request (Admin only).
-     */
     public DocumentDTO createDocumentRequest(DocumentCreateRequest request, User currentUser) {
         if (currentUser.getRole() != Role.ADMIN) {
             throw new UnauthorizedException("Only admins can request documents");
@@ -49,23 +42,22 @@ public class DocumentService {
         return toDTO(saved);
     }
 
-    /**
-     * Get all documents for a user.
-     */
+    public List<DocumentDTO> getAllDocuments() {
+        return documentRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
     public List<DocumentDTO> getDocumentsByUser(Long userId) {
         return documentRepository.findByUserId(userId).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Update a document (mark as submitted, add file URL).
-     */
     public DocumentDTO updateDocument(Long id, DocumentDTO updateRequest, User currentUser) {
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Document", id));
 
-        // Employees can only update their own documents
         if (currentUser.getRole() == Role.EMPLOYEE &&
                 !document.getUser().getId().equals(currentUser.getId())) {
             throw new UnauthorizedException("You can only update your own documents");
@@ -82,9 +74,6 @@ public class DocumentService {
         return toDTO(updated);
     }
 
-    /**
-     * Convert Document entity to DTO.
-     */
     private DocumentDTO toDTO(Document document) {
         return DocumentDTO.builder()
                 .id(document.getId())
