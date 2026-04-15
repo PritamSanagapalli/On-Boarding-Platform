@@ -14,5 +14,9 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     List<Document> findAllByOrderByCreatedAtDesc();
 
+    List<Document> findByStatus(DocumentStatus status);
+
     long countByUserIdAndStatus(Long userId, DocumentStatus status);
+
+    long countByStatus(DocumentStatus status);
 }

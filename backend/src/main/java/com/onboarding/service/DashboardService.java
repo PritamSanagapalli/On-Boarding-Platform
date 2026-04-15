@@ -60,6 +60,8 @@ public class DashboardService {
                             .completedTasks(taskRepository.countByAssignedToIdAndStatus(emp.getId(), TaskStatus.COMPLETED))
                             .pendingDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.PENDING))
                             .submittedDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.SUBMITTED))
+                            .approvedDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.APPROVED))
+                            .rejectedDocuments(documentRepository.countByUserIdAndStatus(emp.getId(), DocumentStatus.REJECTED))
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -81,6 +83,8 @@ public class DashboardService {
         long inReviewTasks = taskRepository.countByAssignedToIdAndStatus(userId, TaskStatus.IN_REVIEW);
         long pendingDocs = documentRepository.countByUserIdAndStatus(userId, DocumentStatus.PENDING);
         long submittedDocs = documentRepository.countByUserIdAndStatus(userId, DocumentStatus.SUBMITTED);
+        long approvedDocs = documentRepository.countByUserIdAndStatus(userId, DocumentStatus.APPROVED);
+        long rejectedDocs = documentRepository.countByUserIdAndStatus(userId, DocumentStatus.REJECTED);
 
         LocalDate now = LocalDate.now();
         LocalDate nextWeek = now.plusDays(7);
@@ -96,6 +100,8 @@ public class DashboardService {
                 .pendingTasks(pendingTasks + inReviewTasks)
                 .pendingDocuments(pendingDocs)
                 .submittedDocuments(submittedDocs)
+                .approvedDocuments(approvedDocs)
+                .rejectedDocuments(rejectedDocs)
                 .upcomingDeadlines(upcomingDeadlines)
                 .build();
     }

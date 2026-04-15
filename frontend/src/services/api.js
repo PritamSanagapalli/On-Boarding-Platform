@@ -8,7 +8,7 @@ import { auth } from '../config/firebase'
  * - Handles token refresh automatically
  */
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },

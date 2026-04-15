@@ -20,7 +20,10 @@ public class DocumentDTO {
     private String documentName;
     private String fileUrl;
     private String status;
+    private String feedback;
     private UserDTO user;
+    private UserDTO verifiedBy;
+    private LocalDateTime verifiedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

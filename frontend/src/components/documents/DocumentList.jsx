@@ -16,11 +16,28 @@ import {
   HiOutlineDocumentDuplicate,
   HiOutlineCloudUpload,
   HiOutlineX,
+  HiOutlineEye,
+  HiOutlineShieldCheck,
+  HiOutlineXCircle,
+  HiOutlineChatAlt,
+  HiOutlineBan,
 } from 'react-icons/hi'
 
-/**
- * File type icon based on extension
- */
+// ─── Status helpers ──────────────────────────────────────────
+
+const STATUS_CONFIG = {
+  PENDING: { label: '⏳ Pending', icon: HiOutlineClock, color: 'amber', variant: 'pending' },
+  SUBMITTED: { label: '📤 Submitted', icon: HiOutlineUpload, color: 'blue', variant: 'submitted' },
+  APPROVED: { label: '✅ Approved', icon: HiOutlineCheckCircle, color: 'emerald', variant: 'approved' },
+  REJECTED: { label: '❌ Rejected', icon: HiOutlineXCircle, color: 'red', variant: 'rejected' },
+}
+
+function getStatusConfig(status) {
+  return STATUS_CONFIG[status] || STATUS_CONFIG.PENDING
+}
+
+// ─── File type icon ──────────────────────────────────────────
+
 function FileIcon({ filename }) {
   const ext = filename?.split('.').pop()?.toLowerCase()
   const imgExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
@@ -35,9 +52,8 @@ function FileIcon({ filename }) {
   return <HiOutlineDocumentText className="w-5 h-5 text-gray-500" />
 }
 
-/**
- * Drag-and-drop file upload zone
- */
+// ─── Drag-and-drop file upload ───────────────────────────────
+
 function FileDropZone({ onFileSelect, uploading }) {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef(null)
@@ -111,9 +127,8 @@ function FileDropZone({ onFileSelect, uploading }) {
   )
 }
 
-/**
- * Uploaded file preview
- */
+// ─── Uploaded file preview ───────────────────────────────────
+
 function FilePreview({ file, uploadResult, onRemove }) {
   const formatSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B'
@@ -144,8 +159,52 @@ function FilePreview({ file, uploadResult, onRemove }) {
   )
 }
 
+// ─── Admin feedback display ──────────────────────────────────
+
+function AdminFeedbackBanner({ doc }) {
+  if (!doc.feedback && !doc.verifiedBy) return null
+
+  const isApproved = doc.status === 'APPROVED'
+
+  return (
+    <div className={`mt-3 p-3 rounded-xl border text-xs ${
+      isApproved
+        ? 'bg-emerald-50 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-500/20'
+        : 'bg-red-50 dark:bg-red-500/5 border-red-200 dark:border-red-500/20'
+    }`}>
+      {doc.feedback && (
+        <div className="flex items-start gap-2">
+          <HiOutlineChatAlt className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${
+            isApproved ? 'text-emerald-500' : 'text-red-500'
+          }`} />
+          <p className={`${isApproved ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
+            {doc.feedback}
+          </p>
+        </div>
+      )}
+      {doc.verifiedBy && (
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <img
+            src={doc.verifiedBy.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.verifiedBy.name)}&size=14&background=6366f1&color=fff`}
+            alt=""
+            className="w-3.5 h-3.5 rounded-full"
+          />
+          <span className="text-gray-500 dark:text-gray-400">
+            Verified by {doc.verifiedBy.name}
+            {doc.verifiedAt && ` · ${new Date(doc.verifiedAt).toLocaleDateString()}`}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main Component ──────────────────────────────────────────
+
 /**
- * Document list with create (admin) and submit with file upload (employee).
+ * Document list with:
+ * - Admin: create requests, review/verify submitted documents
+ * - Employee: view status, submit files, see admin feedback
  */
 export default function DocumentList() {
   const { user, isAdmin } = useAuth()
@@ -154,6 +213,7 @@ export default function DocumentList() {
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [submitModalOpen, setSubmitModalOpen] = useState(false)
+  const [verifyModalOpen, setVerifyModalOpen] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -162,6 +222,10 @@ export default function DocumentList() {
   const [createForm, setCreateForm] = useState({ documentName: '', userId: '' })
   const [selectedFile, setSelectedFile] = useState(null)
   const [uploadResult, setUploadResult] = useState(null)
+
+  // Verification form state
+  const [verifyFeedback, setVerifyFeedback] = useState('')
+  const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
     fetchDocuments()
@@ -180,6 +244,7 @@ export default function DocumentList() {
       }
     } catch (error) {
       console.error('Failed to fetch documents:', error)
+      toast.error('Failed to load documents')
     } finally {
       setLoading(false)
     }
@@ -250,6 +315,27 @@ export default function DocumentList() {
     }
   }
 
+  const handleVerifyDocument = async (status) => {
+    try {
+      setVerifying(true)
+      await api.put(`/documents/${selectedDoc.id}/verify`, {
+        status,
+        feedback: verifyFeedback.trim() || null,
+      })
+      const action = status === 'APPROVED' ? 'approved' : 'rejected'
+      toast.success(`Document ${action} successfully!`)
+      setVerifyModalOpen(false)
+      setSelectedDoc(null)
+      setVerifyFeedback('')
+      fetchDocuments()
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || 'Failed to verify document'
+      toast.error(errorMsg)
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   const openSubmitModal = (doc) => {
     setSelectedDoc(doc)
     setSelectedFile(null)
@@ -257,8 +343,16 @@ export default function DocumentList() {
     setSubmitModalOpen(true)
   }
 
+  const openVerifyModal = (doc) => {
+    setSelectedDoc(doc)
+    setVerifyFeedback('')
+    setVerifyModalOpen(true)
+  }
+
   const pendingCount = documents.filter(d => d.status === 'PENDING').length
   const submittedCount = documents.filter(d => d.status === 'SUBMITTED').length
+  const approvedCount = documents.filter(d => d.status === 'APPROVED').length
+  const rejectedCount = documents.filter(d => d.status === 'REJECTED').length
 
   return (
     <div className="space-y-6">
@@ -267,7 +361,7 @@ export default function DocumentList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Documents</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {isAdmin ? 'Request and track employee documents' : 'View and submit requested documents'}
+            {isAdmin ? 'Request, track, and verify employee documents' : 'View and submit requested documents'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -278,9 +372,19 @@ export default function DocumentList() {
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{pendingCount} Pending</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <div className="w-2 h-2 rounded-full bg-blue-400" />
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{submittedCount} Submitted</span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{approvedCount} Approved</span>
+            </div>
+            {rejectedCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{rejectedCount} Rejected</span>
+              </div>
+            )}
           </div>
           {isAdmin && (
             <button
@@ -315,81 +419,107 @@ export default function DocumentList() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {documents.map((doc, idx) => (
-            <div
-              key={doc.id}
-              className="glass-card-hover p-5 group animate-slide-up"
-              style={{ animationDelay: `${idx * 50}ms` }}
-            >
-              {/* Status header */}
-              <div className="flex items-center justify-between mb-4">
-                <Badge variant={doc.status?.toLowerCase()}>
-                  {doc.status === 'SUBMITTED' ? '✓ Submitted' : '⏳ Pending'}
-                </Badge>
-                {doc.fileUrl && (
-                  <a
-                    href={doc.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
-                    title="Download"
+          {documents.map((doc, idx) => {
+            const statusCfg = getStatusConfig(doc.status)
+            const StatusIcon = statusCfg.icon
+            const isVerified = doc.status === 'APPROVED' || doc.status === 'REJECTED'
+
+            return (
+              <div
+                key={doc.id}
+                className="glass-card-hover p-5 group animate-slide-up"
+                style={{ animationDelay: `${idx * 50}ms` }}
+              >
+                {/* Status header */}
+                <div className="flex items-center justify-between mb-4">
+                  <Badge variant={statusCfg.variant}>
+                    {statusCfg.label}
+                  </Badge>
+                  <div className="flex items-center gap-1">
+                    {doc.fileUrl && (
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors"
+                        title="View file"
+                      >
+                        <HiOutlineDownload className="w-4 h-4" />
+                      </a>
+                    )}
+                    {/* Admin: Review button for SUBMITTED documents */}
+                    {isAdmin && doc.status === 'SUBMITTED' && (
+                      <button
+                        onClick={() => openVerifyModal(doc)}
+                        className="p-1.5 rounded-lg text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                        title="Review document"
+                        id={`review-doc-${doc.id}`}
+                      >
+                        <HiOutlineEye className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Document info */}
+                <div className="flex items-start gap-3">
+                  <div className={`p-2.5 rounded-xl flex-shrink-0 bg-${statusCfg.color}-50 dark:bg-${statusCfg.color}-500/10`}>
+                    <StatusIcon className={`w-5 h-5 text-${statusCfg.color}-500`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                      {doc.documentName}
+                    </h3>
+                    {doc.user && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <img
+                          src={doc.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.user.name)}&size=16&background=6366f1&color=fff`}
+                          alt=""
+                          className="w-4 h-4 rounded-full"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{doc.user.name}</p>
+                      </div>
+                    )}
+                    {doc.fileUrl && (
+                      <p className="text-xs text-primary-500 mt-1.5 truncate" title={doc.fileUrl}>
+                        📎 {doc.fileUrl.split('/').pop()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Admin feedback section (visible to both admin and employee) */}
+                {isVerified && <AdminFeedbackBanner doc={doc} />}
+
+                {/* Submit button for employees (only PENDING docs) */}
+                {!isAdmin && doc.status === 'PENDING' && (
+                  <button
+                    onClick={() => openSubmitModal(doc)}
+                    className="mt-4 w-full btn-outline flex items-center justify-center gap-2 text-sm"
                   >
-                    <HiOutlineDownload className="w-4 h-4" />
-                  </a>
+                    <HiOutlineUpload className="w-4 h-4" />
+                    Upload & Submit
+                  </button>
+                )}
+
+                {/* Admin: Prominent review button for SUBMITTED docs */}
+                {isAdmin && doc.status === 'SUBMITTED' && (
+                  <button
+                    onClick={() => openVerifyModal(doc)}
+                    className="mt-4 w-full btn-primary flex items-center justify-center gap-2 text-sm"
+                    id={`verify-doc-btn-${doc.id}`}
+                  >
+                    <HiOutlineShieldCheck className="w-4 h-4" />
+                    Review & Verify
+                  </button>
                 )}
               </div>
-
-              {/* Document info */}
-              <div className="flex items-start gap-3">
-                <div className={`p-2.5 rounded-xl flex-shrink-0 ${
-                  doc.status === 'SUBMITTED'
-                    ? 'bg-emerald-50 dark:bg-emerald-500/10'
-                    : 'bg-amber-50 dark:bg-amber-500/10'
-                }`}>
-                  {doc.status === 'SUBMITTED' ? (
-                    <HiOutlineCheckCircle className="w-5 h-5 text-emerald-500" />
-                  ) : (
-                    <HiOutlineClock className="w-5 h-5 text-amber-500" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                    {doc.documentName}
-                  </h3>
-                  {doc.user && (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <img
-                        src={doc.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(doc.user.name)}&size=16&background=6366f1&color=fff`}
-                        alt=""
-                        className="w-4 h-4 rounded-full"
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{doc.user.name}</p>
-                    </div>
-                  )}
-                  {doc.fileUrl && (
-                    <p className="text-xs text-primary-500 mt-1.5 truncate" title={doc.fileUrl}>
-                      📎 {doc.fileUrl.split('/').pop()}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Submit button for employees */}
-              {!isAdmin && doc.status === 'PENDING' && (
-                <button
-                  onClick={() => openSubmitModal(doc)}
-                  className="mt-4 w-full btn-outline flex items-center justify-center gap-2 text-sm"
-                >
-                  <HiOutlineUpload className="w-4 h-4" />
-                  Upload & Submit
-                </button>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      {/* Create Document Request Modal (Admin) */}
+      {/* ─── Create Document Request Modal (Admin) ─── */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Request Document">
         <form onSubmit={handleCreateRequest} className="space-y-4">
           <div>
@@ -428,7 +558,7 @@ export default function DocumentList() {
         </form>
       </Modal>
 
-      {/* Submit Document Modal (Employee) - with file upload */}
+      {/* ─── Submit Document Modal (Employee) ─── */}
       <Modal
         isOpen={submitModalOpen}
         onClose={() => { setSubmitModalOpen(false); setSelectedDoc(null); setSelectedFile(null); setUploadResult(null) }}
@@ -494,6 +624,113 @@ export default function DocumentList() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* ─── Verify Document Modal (Admin) ─── */}
+      <Modal
+        isOpen={verifyModalOpen}
+        onClose={() => { setVerifyModalOpen(false); setSelectedDoc(null); setVerifyFeedback('') }}
+        title="Review Document"
+        maxWidth="max-w-xl"
+      >
+        {selectedDoc && (
+          <div className="space-y-5">
+            {/* Document info header */}
+            <div className="p-4 bg-gray-50 dark:bg-dark-bg rounded-xl border border-gray-200 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10">
+                  <HiOutlineDocumentText className="w-6 h-6 text-blue-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{selectedDoc.documentName}</h4>
+                  {selectedDoc.user && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <img
+                        src={selectedDoc.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedDoc.user.name)}&size=16&background=6366f1&color=fff`}
+                        alt=""
+                        className="w-4 h-4 rounded-full"
+                      />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Submitted by {selectedDoc.user.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <Badge variant="submitted">📤 Submitted</Badge>
+              </div>
+            </div>
+
+            {/* File preview / link */}
+            {selectedDoc.fileUrl && (
+              <div className="p-4 bg-primary-50 dark:bg-primary-500/5 rounded-xl border border-primary-200 dark:border-primary-500/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <HiOutlineDocumentDuplicate className="w-5 h-5 text-primary-500" />
+                    <span className="text-sm font-medium text-primary-700 dark:text-primary-400 truncate">
+                      {selectedDoc.fileUrl.split('/').pop()}
+                    </span>
+                  </div>
+                  <a
+                    href={selectedDoc.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-outline text-xs px-3 py-1.5 flex items-center gap-1.5"
+                    id="preview-file-link"
+                  >
+                    <HiOutlineEye className="w-3.5 h-3.5" />
+                    View File
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Feedback input */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Feedback <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={verifyFeedback}
+                onChange={(e) => setVerifyFeedback(e.target.value)}
+                className="input-field min-h-[80px] resize-y"
+                placeholder="Add a comment for the employee..."
+                rows={3}
+                id="verify-feedback-input"
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-dark-border">
+              <button
+                type="button"
+                onClick={() => { setVerifyModalOpen(false); setSelectedDoc(null); setVerifyFeedback('') }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleVerifyDocument('REJECTED')}
+                  disabled={verifying}
+                  className="btn-danger flex items-center gap-2"
+                  id="reject-document-button"
+                >
+                  <HiOutlineBan className="w-4 h-4" />
+                  {verifying ? 'Processing...' : 'Reject'}
+                </button>
+                <button
+                  onClick={() => handleVerifyDocument('APPROVED')}
+                  disabled={verifying}
+                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/25 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  id="approve-document-button"
+                >
+                  <HiOutlineShieldCheck className="w-4 h-4" />
+                  {verifying ? 'Processing...' : 'Approve'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

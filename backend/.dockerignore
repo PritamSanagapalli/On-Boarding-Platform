@@ -1,0 +1,27 @@
+# Build artifacts
+target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+DEPLOYMENT.md
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Uploads (user data)
+uploads/
+
+# OS files
+.DS_Store
+Thumbs.db

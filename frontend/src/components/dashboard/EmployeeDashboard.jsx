@@ -123,8 +123,9 @@ export default function EmployeeDashboard() {
     ? Math.round((data.completedTasks / data.totalTasks) * 100)
     : 0
 
-  const docTotal = (data.submittedDocuments || 0) + (data.pendingDocuments || 0)
-  const docRate = docTotal > 0 ? Math.round((data.submittedDocuments / docTotal) * 100) : 0
+  const docTotal = (data.pendingDocuments || 0) + (data.submittedDocuments || 0) + (data.approvedDocuments || 0) + (data.rejectedDocuments || 0)
+  const docApproved = data.approvedDocuments || 0
+  const docRate = docTotal > 0 ? Math.round((docApproved / docTotal) * 100) : 0
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -165,7 +166,7 @@ export default function EmployeeDashboard() {
         <StatCard icon={HiOutlineClipboardList} label="Total Tasks" value={data.totalTasks} color="primary" />
         <StatCard icon={HiOutlineCheckCircle} label="Completed" value={data.completedTasks} color="emerald" />
         <StatCard icon={HiOutlineClock} label="Pending" value={data.pendingTasks} color="amber" />
-        <StatCard icon={HiOutlineDocumentText} label="Documents" value={`${data.submittedDocuments || 0}/${docTotal}`} color="blue" />
+        <StatCard icon={HiOutlineDocumentText} label="Documents" value={`${docApproved}/${docTotal}`} color="blue" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

@@ -36,11 +36,30 @@ public class Document {
     private DocumentStatus status = DocumentStatus.PENDING;
 
     /**
+     * Admin feedback provided during verification (approve/reject).
+     */
+    @Column(columnDefinition = "TEXT")
+    private String feedback;
+
+    /**
      * The employee this document belongs to.
      */
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    /**
+     * The admin who verified (approved/rejected) this document.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "verified_by")
+    private User verifiedBy;
+
+    /**
+     * Timestamp when the document was verified.
+     */
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

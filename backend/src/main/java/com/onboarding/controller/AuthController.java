@@ -32,4 +32,13 @@ public class AuthController {
         AuthResponse response = authService.authenticateWithGoogle(request);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
+
+    /**
+     * GET /api/auth/health
+     * Health check endpoint for deployment platforms (Railway, Render, etc.)
+     */
+    @GetMapping("/health")
+    public ResponseEntity<ApiResponse<String>> health() {
+        return ResponseEntity.ok(ApiResponse.success("Service is healthy", "UP"));
+    }
 }

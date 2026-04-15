@@ -21,5 +21,7 @@ public class DashboardEmployeeDTO {
     private long pendingTasks;
     private long pendingDocuments;
     private long submittedDocuments;
+    private long approvedDocuments;
+    private long rejectedDocuments;
     private List<TaskDTO> upcomingDeadlines;
 }

@@ -38,5 +38,7 @@ public class DashboardAdminDTO {
         private long completedTasks;
         private long pendingDocuments;
         private long submittedDocuments;
+        private long approvedDocuments;
+        private long rejectedDocuments;
     }
 }
