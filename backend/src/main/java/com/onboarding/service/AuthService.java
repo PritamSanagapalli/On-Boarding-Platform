@@ -50,19 +50,26 @@ public class AuthService {
 
             logger.info("Firebase token verified for user: {}", email);
 
-            // Find or create the user
+            // Find or create the user — check by firebaseUid first, then by email
             User user = userRepository.findByFirebaseUid(uid)
-                    .orElseGet(() -> {
-                        logger.info("Creating new user: {}", email);
-                        User newUser = User.builder()
-                                .firebaseUid(uid)
-                                .email(email)
-                                .name(name != null ? name : email)
-                                .profilePicture(picture)
-                                .role(Role.EMPLOYEE) // Default role
-                                .build();
-                        return userRepository.save(newUser);
-                    });
+                    .orElseGet(() -> userRepository.findByEmail(email)
+                            .map(existingUser -> {
+                                // User exists by email but UID changed — update it
+                                logger.info("Updating Firebase UID for existing user: {}", email);
+                                existingUser.setFirebaseUid(uid);
+                                return userRepository.save(existingUser);
+                            })
+                            .orElseGet(() -> {
+                                logger.info("Creating new user: {}", email);
+                                User newUser = User.builder()
+                                        .firebaseUid(uid)
+                                        .email(email)
+                                        .name(name != null ? name : email)
+                                        .profilePicture(picture)
+                                        .role(Role.EMPLOYEE) // Default role
+                                        .build();
+                                return userRepository.save(newUser);
+                            }));
 
             // Update profile picture if changed
             if (picture != null && !picture.equals(user.getProfilePicture())) {
